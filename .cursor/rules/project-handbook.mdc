@@ -1,0 +1,12 @@
+---
+description: Keep the root project handbook current
+alwaysApply: true
+---
+
+# Project Handbook Rule
+
+- `HANDBOOK.md` is the single root handbook for both humans and AI agents.
+- `README.md` stays short and practical; do not turn it into the main long-form spec.
+- When changing architecture, API, runtime behavior, auth, analytics, storage, roles, deploy flow, or required env vars, update `HANDBOOK.md` in the same task.
+- If a change is too small to require a handbook edit, explicitly verify that the handbook remains accurate.
+- Prefer updating existing sections over creating duplicate root docs.

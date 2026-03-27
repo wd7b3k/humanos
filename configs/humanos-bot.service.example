@@ -1,0 +1,17 @@
+[Unit]
+Description=HumanOS Telegram Bot
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/humanos
+ExecStart=/opt/humanos/scripts/run.sh
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+TimeoutStopSec=15
+KillMode=mixed
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
