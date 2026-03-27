@@ -1,5 +1,7 @@
 # HumanOS
 
+Репозиторий: [github.com/wd7b3k/humanos](https://github.com/wd7b3k/humanos) (ветка `main`). Синхронизация: `./scripts/sync-github.sh`.
+
 Telegram-бот на **aiogram 3.x** с разделением на transport / application / domain / infrastructure. Бизнес-логика не зависит от Telegram; те же use cases можно вызывать из **FastAPI** (заготовка в `interfaces/api/`).
 
 Проект рассчитан на изолированное развёртывание в `/opt/humanos`: без путей к другим проектам, логи и venv — только внутри каталога.
