@@ -7,6 +7,7 @@ from app.use_cases.context import AppContext
 from shared.constants import EVENT_PROTOCOL_STARTED, RATING_MAX, RATING_MIN
 from shared.dto import ErrorResult, ProtocolStartResult, ProtocolStepResult
 from shared.locale import t
+from shared.protocol_step_hints import append_protocol_rating_hints
 
 
 class StartProtocolUseCase:
@@ -69,10 +70,12 @@ class StartProtocolUseCase:
             app_type=app_type,
         )
         body = self._ctx.protocols.format_step_message(step0, index=0, total=total)
+        body = append_protocol_rating_hints(body, locale=locale, step_index=0, total=total)
         first = ProtocolStepResult(
             text=body,
             step_index=0,
             total_steps=total,
             is_last_step=(total == 1),
+            protocol_id=protocol_id,
         )
         return ProtocolStartResult(first_step=first)

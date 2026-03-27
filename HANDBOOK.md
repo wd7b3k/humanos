@@ -124,6 +124,10 @@
 - на записи новых событий
 - на чтении агрегатов и recent events
 
+**Воронка практики (имена событий):** `start`, `state_selected`, `protocol_started`, `protocol_completed`, `improved`, плюс для диагностики UX шагов: `protocol_step_shown` (показ шага; payload: `protocol_id`, `step_index`, `total_steps`), `protocol_next_clicked` (нажатие «Далее»; `from_step_index`), `protocol_abandon_menu` (подтверждённый выход из практики). Трассировка апдейтов: `bot_interaction` (не в суммарных счётчиках воронки).
+
+Журнал **релизов продукта** (код/UX, не JSON протоколов): `docs/PRODUCT_CHANGELOG.md`, скрипт `scripts/record_product_release.sh`.
+
 ### 5.4 Релизы текстов
 
 Реестр релизов протоколов:

@@ -30,6 +30,7 @@ class ProtocolStepResult:
     step_index: int
     total_steps: int
     is_last_step: bool
+    protocol_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)

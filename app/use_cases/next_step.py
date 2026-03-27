@@ -8,6 +8,7 @@ from app.session_util import load_session, save_session
 from app.use_cases.context import AppContext
 from shared.dto import ErrorResult, ProtocolStepResult
 from shared.locale import t
+from shared.protocol_step_hints import append_protocol_rating_hints
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +17,8 @@ class NextStepOutcome:
 
     kind: str  # "step" | "need_final_rating"
     step: ProtocolStepResult | None = None
+    protocol_id: str | None = None
+    step_index_before: int | None = None
 
 
 class NextStepUseCase:
@@ -46,12 +49,24 @@ class NextStepUseCase:
             session = session.with_updates(step_index=new_idx)
             await save_session(self._ctx.users, user_id, session)
             body = self._ctx.protocols.format_step_message(step, index=new_idx, total=total)
+            body = append_protocol_rating_hints(body, locale=locale, step_index=new_idx, total=total)
             pr = ProtocolStepResult(
                 text=body,
                 step_index=new_idx,
                 total_steps=total,
                 is_last_step=(new_idx == total - 1),
+                protocol_id=pid,
             )
-            return NextStepOutcome(kind="step", step=pr)
+            return NextStepOutcome(
+                kind="step",
+                step=pr,
+                protocol_id=pid,
+                step_index_before=idx,
+            )
 
-        return NextStepOutcome(kind="need_final_rating", step=None)
+        return NextStepOutcome(
+            kind="need_final_rating",
+            step=None,
+            protocol_id=pid,
+            step_index_before=idx,
+        )

@@ -25,6 +25,9 @@ EVENT_PUSH_PERMISSION_SET = "push_permission_set"
 EVENT_FEEDBACK_TOPIC_SELECTED = "feedback_topic_selected"
 EVENT_FEEDBACK_MESSAGE_SENT = "feedback_message_sent"
 EVENT_BOT_INTERACTION = "bot_interaction"
+EVENT_PROTOCOL_STEP_SHOWN = "protocol_step_shown"
+EVENT_PROTOCOL_NEXT_CLICKED = "protocol_next_clicked"
+EVENT_PROTOCOL_ABANDON_MENU = "protocol_abandon_menu"
 ANALYTICS_TRACE_EVENT_NAMES: frozenset[str] = frozenset({EVENT_BOT_INTERACTION})
 
 # Default Russian labels (tests & code that omit locale)

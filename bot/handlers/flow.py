@@ -12,6 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardMarkup
 
+from app.session_util import load_session, save_session
 from app.use_cases.context import AppContext
 from app.use_cases.donation import DonationUseCase
 from app.use_cases.finish_protocol import FinishProtocolUseCase
@@ -23,6 +24,7 @@ from bot.keyboards import (
     improved_finish_keyboard,
     main_menu_reply,
     protocol_next_keyboard,
+    protocol_quit_confirm_keyboard,
     rating_keyboard,
     state_selection_keyboard,
 )
@@ -34,8 +36,15 @@ from bot.reply_keyboard_strip import maybe_strip_reply_keyboard
 from bot.section_media import remember_section_file_id, section_media
 from bot.states import FlowStates
 from bot.telegram_safe import ensure_html_message, html_message_and_caption, safe_answer_callback
-from shared.constants import RATING_MAX, RATING_MIN, render_final_rating_guide_locale
-from shared.dto import ErrorResult, FinishResult, ProtocolStartResult, StateSelectedResult
+from shared.constants import (
+    EVENT_PROTOCOL_ABANDON_MENU,
+    EVENT_PROTOCOL_NEXT_CLICKED,
+    EVENT_PROTOCOL_STEP_SHOWN,
+    RATING_MAX,
+    RATING_MIN,
+    render_final_rating_guide_locale,
+)
+from shared.dto import ErrorResult, FinishResult, ProtocolStartResult, ProtocolStepResult, StateSelectedResult
 from shared.locale import (
     BTN_START_VARIANTS,
     t,
@@ -116,10 +125,21 @@ def build_flow_router(ctx: AppContext) -> Router:
             log.warning("section image send failed for %s", section_key, exc_info=True)
             await message.answer(body, parse_mode="HTML", reply_markup=reply_markup)
 
-    async def _send_protocol_step(message: Message, text: str, step_index: int, locale: str) -> None:
+    async def _send_protocol_step(message: Message, step: ProtocolStepResult, locale: str) -> None:
         await maybe_strip_reply_keyboard(message, ctx.settings)
-        media, cached = phase_media(step_index)
-        body, cap = html_message_and_caption(text, locale=locale)
+        ctx.analytics.track(
+            EVENT_PROTOCOL_STEP_SHOWN,
+            message.from_user.id,
+            {
+                "protocol_id": step.protocol_id,
+                "step_index": step.step_index,
+                "total_steps": step.total_steps,
+                "locale": locale,
+            },
+            app_type="telegram",
+        )
+        media, cached = phase_media(step.step_index)
+        body, cap = html_message_and_caption(step.text, locale=locale)
         if media is None:
             await message.answer(
                 body,
@@ -137,7 +157,7 @@ def build_flow_router(ctx: AppContext) -> Router:
                 photo_kw["caption"] = cap
             sent = await message.answer_photo(**photo_kw)
             if not cached:
-                remember_phase_file_id(step_index, sent)
+                remember_phase_file_id(step.step_index, sent)
         except (TelegramBadRequest, TelegramNetworkError):
             log.warning("phase image send failed, fallback to text", exc_info=True)
             await message.answer(
@@ -260,7 +280,7 @@ def build_flow_router(ctx: AppContext) -> Router:
         assert isinstance(result, ProtocolStartResult)
         await state.set_state(FlowStates.protocol_step)
         first = result.first_step
-        await _send_protocol_step(query.message, first.text, first.step_index, locale)
+        await _send_protocol_step(query.message, first, locale)
 
     @router.message(FlowStates.initial_rating, OneToTenRatingFilter())
     async def on_initial_rating_text(message: Message, state: FSMContext, locale: str) -> None:
@@ -276,7 +296,7 @@ def build_flow_router(ctx: AppContext) -> Router:
         assert isinstance(result, ProtocolStartResult)
         await state.set_state(FlowStates.protocol_step)
         first = result.first_step
-        await _send_protocol_step(message, first.text, first.step_index, locale)
+        await _send_protocol_step(message, first, locale)
 
     @router.callback_query(F.data == "proto:next", FlowStates.protocol_step)
     async def on_proto_next(query: CallbackQuery, state: FSMContext, locale: str) -> None:
@@ -288,6 +308,17 @@ def build_flow_router(ctx: AppContext) -> Router:
         if isinstance(outcome, ErrorResult):
             await query.message.answer(ensure_html_message(outcome.message, locale=locale))
             return
+        if outcome.protocol_id is not None and outcome.step_index_before is not None:
+            ctx.analytics.track(
+                EVENT_PROTOCOL_NEXT_CLICKED,
+                query.from_user.id,
+                {
+                    "protocol_id": outcome.protocol_id,
+                    "from_step_index": outcome.step_index_before,
+                    "locale": locale,
+                },
+                app_type="telegram",
+            )
         if outcome.kind == "need_final_rating":
             await state.set_state(FlowStates.final_rating)
             await maybe_strip_reply_keyboard(query.message, ctx.settings)
@@ -299,7 +330,46 @@ def build_flow_router(ctx: AppContext) -> Router:
             )
             return
         if outcome.step:
-            await _send_protocol_step(query.message, outcome.step.text, outcome.step.step_index, locale)
+            await _send_protocol_step(query.message, outcome.step, locale)
+
+    @router.callback_query(F.data == "nav:quit_proto", FlowStates.protocol_step)
+    async def on_quit_proto_ask(query: CallbackQuery, locale: str) -> None:
+        await safe_answer_callback(query)
+        if query.message:
+            await query.message.answer(
+                t(locale, "nav_quit_proto_prompt"),
+                parse_mode="HTML",
+                reply_markup=protocol_quit_confirm_keyboard(locale),
+            )
+
+    @router.callback_query(F.data == "nav:quit_no", FlowStates.protocol_step)
+    async def on_quit_proto_no(query: CallbackQuery, locale: str) -> None:
+        await safe_answer_callback(query, t(locale, "callback_quit_continue"))
+
+    @router.callback_query(F.data == "nav:quit_yes", FlowStates.protocol_step)
+    async def on_quit_proto_yes(query: CallbackQuery, state: FSMContext, locale: str) -> None:
+        await safe_answer_callback(query)
+        uid = query.from_user.id
+        sess = await load_session(ctx.users, uid)
+        ctx.analytics.track(
+            EVENT_PROTOCOL_ABANDON_MENU,
+            uid,
+            {
+                "protocol_id": sess.protocol_id or "",
+                "step_index": sess.step_index,
+                "locale": locale,
+            },
+            app_type="telegram",
+        )
+        await state.clear()
+        updated = sess.reset_flow()
+        await save_session(ctx.users, uid, updated)
+        if query.message:
+            await query.message.answer(
+                t(locale, "nav_home_body"),
+                parse_mode="HTML",
+                reply_markup=_menu_markup(uid, locale),
+            )
 
     @router.callback_query(F.data.startswith("fr:"), FlowStates.final_rating)
     async def on_final_rating_cb(query: CallbackQuery, state: FSMContext, locale: str) -> None:

@@ -79,12 +79,20 @@ def rating_keyboard(locale: str, prefix: str) -> InlineKeyboardMarkup:
 
 
 def protocol_next_keyboard(locale: str) -> InlineKeyboardMarkup:
+    """Primary action on its own row; quit is secondary (reduces mis-taps vs «в меню»)."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(text=t(locale, "kb_proto_next"), callback_data="proto:next"),
-                InlineKeyboardButton(text=t(locale, "kb_proto_finish_home"), callback_data="nav:home"),
-            ],
+            [InlineKeyboardButton(text=t(locale, "kb_proto_next"), callback_data="proto:next")],
+            [InlineKeyboardButton(text=t(locale, "kb_proto_quit_ask"), callback_data="nav:quit_proto")],
+        ],
+    )
+
+
+def protocol_quit_confirm_keyboard(locale: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t(locale, "kb_proto_quit_yes"), callback_data="nav:quit_yes")],
+            [InlineKeyboardButton(text=t(locale, "kb_proto_quit_no"), callback_data="nav:quit_no")],
         ],
     )
 

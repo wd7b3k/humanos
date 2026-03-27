@@ -27,6 +27,7 @@ from bot.keyboards import (
     feedback_root_keyboard,
     feedback_survey_keyboard,
     main_menu_reply,
+    protocol_quit_confirm_keyboard,
 )
 from bot.reply_keyboard_strip import maybe_strip_reply_keyboard
 from bot.section_media import remember_section_file_id, section_media
@@ -657,6 +658,16 @@ def build_menu_router(ctx: AppContext) -> Router:
 
     @router.callback_query(F.data == "nav:home")
     async def cb_nav_home(query: CallbackQuery, state: FSMContext, locale: str) -> None:
+        cur = await state.get_state()
+        if cur == FlowStates.protocol_step.state:
+            await safe_answer_callback(query)
+            if query.message:
+                await query.message.answer(
+                    t(locale, "nav_quit_proto_prompt"),
+                    parse_mode="HTML",
+                    reply_markup=protocol_quit_confirm_keyboard(locale),
+                )
+            return
         await safe_answer_callback(query, t(locale, "callback_nav_home"))
         await state.clear()
         current = await load_session(ctx.users, query.from_user.id)
