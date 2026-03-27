@@ -167,7 +167,8 @@ def load_settings(*, env_file: Path | None = None) -> Settings:
         os.getenv("BOT_HIDE_REPLY_KEYBOARD_OUTSIDE_HOME", "true"),
         default=True,
     )
-    _id_resync_raw = (os.getenv("BOT_IDENTITY_RESYNC_SECONDS", "60").strip() or "60")
+    # Реже синхронизировать профиль → меньше round-trip Redis + SQLite на активного юзера.
+    _id_resync_raw = (os.getenv("BOT_IDENTITY_RESYNC_SECONDS", "180").strip() or "180")
     bot_identity_resync_seconds = max(5.0, float(_id_resync_raw))
 
     if not token:

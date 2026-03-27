@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -24,6 +25,7 @@ class TelegramIdentityMiddleware(BaseMiddleware):
         self._resync_seconds = float(ctx.settings.bot_identity_resync_seconds)
 
     _fingerprints: ClassVar[dict[int, tuple[tuple[str | None, str | None, str | None], float]]] = {}
+    _sync_locks: ClassVar[dict[int, asyncio.Lock]] = {}
 
     async def __call__(
         self,
@@ -43,12 +45,14 @@ class TelegramIdentityMiddleware(BaseMiddleware):
                 and (now - ent[1]) < self._resync_seconds
             )
             if not skip:
-                await self._capture.sync_telegram_identity(
-                    user_id=user.id,
-                    username=user.username,
-                    full_name=user.full_name,
-                    language_code=user.language_code,
-                )
+                lock = self._sync_locks.setdefault(uid, asyncio.Lock())
+                async with lock:
+                    await self._capture.sync_telegram_identity(
+                        user_id=user.id,
+                        username=user.username,
+                        full_name=user.full_name,
+                        language_code=user.language_code,
+                    )
                 if len(self._fingerprints) >= _MAX_FINGERPRINT_CACHE:
                     drop = max(1, _MAX_FINGERPRINT_CACHE // 5)
                     for stale in list(self._fingerprints.keys())[:drop]:

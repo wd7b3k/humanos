@@ -159,7 +159,9 @@ Telegram identity sync:
 - `bot/identity_middleware.py`
 - `app/use_cases/identity.py`
 
-На каждом апдейте:
+Не на каждый апдейт подряд: middleware кэширует «отпечаток» профиля и снова ходит в Redis/SQLite не чаще чем раз в `BOT_IDENTITY_RESYNC_SECONDS` (по умолчанию **180** с; минимум 5). Параллельные апдейты одного пользователя сериализуются `asyncio.Lock`.
+
+Когда срабатывает sync:
 
 - обновляется session state
 - делается upsert клиента и identity в SQLite

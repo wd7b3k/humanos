@@ -133,6 +133,14 @@ class BotInteractionAnalyticsMiddleware(BaseMiddleware):
         locale_hint = data.get("locale")
         ctx = self._ctx
 
+        def _log_task_err(task: asyncio.Task) -> None:
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                log.debug("bot_interaction analytics task failed", exc_info=True)
+
         async def _persist_trace() -> None:
             try:
                 parsed = _payload_for_update(ev)
@@ -145,5 +153,6 @@ class BotInteractionAnalyticsMiddleware(BaseMiddleware):
             except Exception:
                 log.debug("bot_interaction analytics failed", exc_info=True)
 
-        asyncio.create_task(_persist_trace())
+        t = asyncio.create_task(_persist_trace())
+        t.add_done_callback(_log_task_err)
         return result

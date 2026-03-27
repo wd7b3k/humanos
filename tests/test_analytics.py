@@ -303,6 +303,35 @@ def test_analytics_summary_audience_splits_product_and_internal() -> None:
     assert internal.event_counts.get("start") == 1
 
 
+def test_product_and_internal_summaries_matches_separate_summary_calls() -> None:
+    ts = "2026-03-25T12:00:00+00:00"
+    analytics = Analytics(exclude_user_predicate=lambda uid, app_type: uid == "1")
+    analytics._buffer.extend(  # noqa: SLF001
+        [
+            AnalyticsEvent(
+                name="start",
+                user_id="user-a",
+                payload={"app_type": "telegram"},
+                ts=ts,
+            ),
+            AnalyticsEvent(
+                name="start",
+                user_id="1",
+                payload={"app_type": "telegram"},
+                ts=ts,
+            ),
+        ]
+    )
+    now = datetime(2026, 3, 25, 15, 0, tzinfo=UTC)
+    dual_p, dual_i = analytics.product_and_internal_summaries(period_key="today", now=now)
+    sep_p = analytics.summary(period_key="today", audience="product", now=now)
+    sep_i = analytics.summary(period_key="today", audience="internal", now=now)
+    assert dual_p.total_events == sep_p.total_events == 1
+    assert dual_i.total_events == sep_i.total_events == 1
+    assert dual_p.event_counts == sep_p.event_counts
+    assert dual_i.event_counts == sep_i.event_counts
+
+
 def test_retention_returning_vs_new_today_utc() -> None:
     analytics = Analytics(exclude_user_predicate=lambda uid, _: uid == "admin")
     analytics._buffer.extend(  # noqa: SLF001

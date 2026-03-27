@@ -102,11 +102,8 @@ def build_menu_router(ctx: AppContext) -> Router:
         return "today"
 
     def _format_analytics_text(period_key: str, locale: str) -> str:
-        product = ctx.analytics.summary(
-            period_key=period_key, recent_limit=5, audience="product", locale=locale
-        )
-        internal = ctx.analytics.summary(
-            period_key=period_key, recent_limit=5, audience="internal", locale=locale
+        product, internal = ctx.analytics.product_and_internal_summaries(
+            period_key=period_key, recent_limit=5, locale=locale
         )
 
         def _segment_lines(summary, loc: str) -> tuple[str, str, str, str]:

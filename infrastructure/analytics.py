@@ -419,22 +419,18 @@ class Analytics:
             max(self._max_buffer * 2, recent_limit, _RETENTION_SNAPSHOT_FLOOR),
         )
 
-    def summary(
+    def _summary_for_audience(
         self,
+        snapshot: list[AnalyticsEvent],
         *,
-        period_key: str = "today",
-        recent_limit: int = 10,
-        now: datetime | None = None,
-        audience: AnalyticsAudience = "product",
-        locale: str | None = None,
+        audience: AnalyticsAudience,
+        period_key: str,
+        start: datetime,
+        end: datetime,
+        point_in_time: datetime,
+        loc: str,
+        recent_limit: int,
     ) -> AnalyticsSummary:
-        """Return aggregate counters for the admin panel."""
-        if period_key not in ANALYTICS_PERIODS:
-            period_key = "today"
-        loc = normalize_locale(locale)
-        point_in_time = now or datetime.now(UTC)
-        start, end = _period_bounds(period_key, point_in_time)
-        snapshot = self._snapshot_events(min_events=self._summary_snapshot_budget(recent_limit))
         history_matched = [ev for ev in snapshot if self._audience_match(ev, audience)]
         events = [
             ev
@@ -499,3 +495,70 @@ class Analytics:
             repeat_start_users=repeat_start_users,
             recent_events=recent_events,
         )
+
+    def summary(
+        self,
+        *,
+        period_key: str = "today",
+        recent_limit: int = 10,
+        now: datetime | None = None,
+        audience: AnalyticsAudience = "product",
+        locale: str | None = None,
+    ) -> AnalyticsSummary:
+        """Return aggregate counters for the admin panel."""
+        if period_key not in ANALYTICS_PERIODS:
+            period_key = "today"
+        loc = normalize_locale(locale)
+        point_in_time = now or datetime.now(UTC)
+        start, end = _period_bounds(period_key, point_in_time)
+        snapshot = self._snapshot_events(min_events=self._summary_snapshot_budget(recent_limit))
+        return self._summary_for_audience(
+            snapshot,
+            audience=audience,
+            period_key=period_key,
+            start=start,
+            end=end,
+            point_in_time=point_in_time,
+            loc=loc,
+            recent_limit=recent_limit,
+        )
+
+    def product_and_internal_summaries(
+        self,
+        *,
+        period_key: str = "today",
+        recent_limit: int = 10,
+        now: datetime | None = None,
+        locale: str | None = None,
+    ) -> tuple[AnalyticsSummary, AnalyticsSummary]:
+        """
+        Один проход по снимку событий для product + internal (админка).
+        Раньше два вызова summary() читали JSONL/буфер дважды и сильно тормозили.
+        """
+        if period_key not in ANALYTICS_PERIODS:
+            period_key = "today"
+        loc = normalize_locale(locale)
+        point_in_time = now or datetime.now(UTC)
+        start, end = _period_bounds(period_key, point_in_time)
+        snapshot = self._snapshot_events(min_events=self._summary_snapshot_budget(recent_limit))
+        product = self._summary_for_audience(
+            snapshot,
+            audience="product",
+            period_key=period_key,
+            start=start,
+            end=end,
+            point_in_time=point_in_time,
+            loc=loc,
+            recent_limit=recent_limit,
+        )
+        internal = self._summary_for_audience(
+            snapshot,
+            audience="internal",
+            period_key=period_key,
+            start=start,
+            end=end,
+            point_in_time=point_in_time,
+            loc=loc,
+            recent_limit=recent_limit,
+        )
+        return product, internal
